@@ -1,4 +1,4 @@
-import { Dispatch, FormEvent, SetStateAction, useCallback, useMemo, useRef, useState } from 'react'
+import { Dispatch, FormEvent, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 type MenuQueryType = {
   x: number
@@ -6,7 +6,11 @@ type MenuQueryType = {
   query: string
 }
 
-type RichTextNodeTypesType = 'paragraph' | 'text'
+type MenuItemType = {
+  label: string
+}
+
+type RichTextNodeTypesType = 'paragraph' | 'text' | 'image' | 'table'
 
 type RichTextNodeType = {
   id: string
@@ -28,22 +32,49 @@ const menuOffset = {
   y: 8,
 }
 
+const menuItems: Partial<Record<RichTextNodeTypesType, MenuItemType>> = {
+  paragraph: {
+    label: 'Paragraph',
+  },
+  image: {
+    label: 'Image',
+  },
+  table: {
+    label: 'Table',
+  },
+}
+
 function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
   const rootRef = useRef<HTMLDivElement>(null)
 
+  const [currentNode, setCurrentNode] = useState<RichTextNodeType | null>(null)
+  const [currentNodeIndex, setCurrentNodeIndex] = useState<number>(-1)
   const [menuQuery, setMenuQuery] = useState<MenuQueryType | null>(null)
 
   const renderParagraph = useCallback((node: RichTextNodeType) => (
-    <p key={node.id}>
+    <p
+      key={node.id}
+      id={node.id}
+    >
       {node.children?.map(child => (
         <span key={child.id}>{child.text}</span>
       ))}
     </p>
   ), [])
 
+  const renderImage = useCallback((node: RichTextNodeType) => (
+    <img
+      key={node.id}
+      id={node.id}
+      width="10%"
+      src={node.text!}
+    />
+  ), [])
+
   const typeToRenderer = useMemo<Partial<Record<RichTextNodeTypesType, typeof renderParagraph>>>(() => ({
     paragraph: renderParagraph,
-  }), [renderParagraph])
+    image: renderImage,
+  }), [renderParagraph, renderImage])
 
   const renderContent = useCallback((content: RichTextContentType) => {
     if (!Array.isArray(content)) return null
@@ -53,12 +84,59 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
 
   const getContentText = useCallback(() => content.map(node => node.children?.map(child => child.text ?? '')).join(''), [content])
 
+  const getContentTree = useCallback((htmlString: string) => {
+
+    console.log('htmlString', htmlString)
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(htmlString, 'text/html')
+    const root = doc.body
+    const children = root.childNodes
+    const result: RichTextNodeType[] = []
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i] as Element
+
+      if (child.nodeName === 'P') {
+        const textNodes = child.childNodes
+        const textChildren: RichTextNodeType[] = []
+
+        for (let j = 0; j < textNodes.length; j++) {
+          const textNode = textNodes[j] as Element
+
+          if (textNode.nodeName === 'SPAN') {
+            textChildren.push({
+              id: textNode.id ?? Math.random().toString(),
+              type: 'text',
+              text: textNode.textContent ?? '',
+            })
+          }
+        }
+
+        result.push({
+          id: child.id ?? Math.random().toString(),
+          type: 'paragraph',
+          children: textChildren,
+        })
+      }
+      if (child.nodeName === 'IMG') {
+        result.push({
+          id: child.id ?? Math.random().toString(),
+          type: 'image',
+          text: child.getAttribute('src') ?? '',
+        })
+      }
+    }
+
+    return result
+  }, [])
+
   const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
     const existingText = getContentText()
     const rawText = event.currentTarget.innerText
 
-    console.log('existingText, ', existingText, rawText)
     const nDiff = rawText.length - existingText.length
+    console.log('existingText, ', existingText, rawText, nDiff)
+    console.log('event.currentTarget.innerHTML', getContentTree(event.currentTarget.innerHTML))
 
     if (nDiff > 0) {
       const caretIndex = getCaretIndex(rootRef.current!)
@@ -77,41 +155,61 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
           y: y + menuOffset.y,
           query: '',
         })
+
+        return
       }
+
+      return
     }
-  }, [getContentText])
 
-  const renderMenu = useCallback(() => {
-    if (menuQuery === null) return null
+    setMenuQuery(null)
+  }, [getContentText, getContentTree])
 
-    return (
-      <div style={{
-        position: 'absolute',
-        backgroundColor: 'red',
-        color: 'white',
-        left: menuQuery.x,
-        top: menuQuery.y,
-      }}
-      >
-        Foo
-      </div>
+  const handleAddNode = useCallback((key: RichTextNodeTypesType) => {
+    setContent(prevContent =>
+      // TODO
+      [...prevContent, { type: key, id: Math.random().toString() }]
     )
-  }, [menuQuery])
+    setMenuQuery(null)
+  }, [setContent])
+
+  const handleCaretChange = useCallback(() => {
+
+  }, [])
+
+  useEffect(() => {
+    if (!rootRef.current) return
+
+    const { current } = rootRef
+
+    current.addEventListener('click', handleCaretChange)
+    current.addEventListener('keydown', handleCaretChange)
+
+    return () => {
+      current.removeEventListener('click', handleCaretChange)
+      current.removeEventListener('keydown', handleCaretChange)
+    }
+  }, [handleCaretChange])
 
   return (
-    <div
-      ref={rootRef}
-      contentEditable
-      suppressContentEditableWarning
-      onInput={handleInput}
-      style={{
-        position: 'relative',
-        outline: 'none',
-        backgroundColor: '#eee',
-      }}
-    >
-      {renderContent(content)}
-      {renderMenu()}
+    <div style={{ position: 'relative' }}>
+      <div
+        ref={rootRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        style={{
+          outline: 'none',
+          backgroundColor: '#eee',
+        }}
+      >
+        {renderContent(content)}
+      </div>
+      <RichTextEditorMenu
+        menuQuery={menuQuery}
+        setMenuQuery={setMenuQuery}
+        onValidate={handleAddNode}
+      />
     </div>
   )
 }
@@ -162,6 +260,102 @@ function getCaretIndex(element: HTMLDivElement) {
   position = preCaretRange.toString().length
 
   return position
+}
+
+type RichTextEditorMenuPropsType = {
+  menuQuery: MenuQueryType | null
+  setMenuQuery: Dispatch<SetStateAction<MenuQueryType | null>>
+  onValidate: (key: RichTextNodeTypesType) => void
+}
+
+function RichTextEditorMenu({ menuQuery, setMenuQuery, onValidate }: RichTextEditorMenuPropsType) {
+  const [selectedKey, setSelectedKey] = useState('')
+
+  const filteredMenuItems = useMemo(() => {
+    if (!menuQuery?.query) return menuItems
+
+    return Object.entries(menuItems)
+      .filter(([key]) => key.includes(menuQuery?.query ?? ''))
+      .map(([key, value]) => ({ key, value }))
+      .reduce((acc, { key, value }) => ({ ...acc, [key]: value }), {} as typeof menuItems)
+  }, [menuQuery])
+
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      setMenuQuery(null)
+
+      return
+    }
+
+    if (event.key === 'Enter') {
+      onValidate(selectedKey as RichTextNodeTypesType)
+      setSelectedKey('')
+
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      const keys = Object.keys(filteredMenuItems)
+
+      const index = keys.indexOf(selectedKey)
+
+      setSelectedKey(keys[index - 1] ?? keys[keys.length - 1])
+
+      return
+    }
+
+    if (event.key === 'ArrowDown') {
+      const keys = Object.keys(filteredMenuItems)
+
+      const index = keys.indexOf(selectedKey)
+
+      setSelectedKey(keys[index + 1] ?? keys[0])
+    }
+  }, [selectedKey, filteredMenuItems, setMenuQuery, onValidate])
+
+  useEffect(() => {
+    const keys = Object.keys(filteredMenuItems)
+
+    if (keys.includes(selectedKey)) return
+
+    setSelectedKey(keys[0])
+  }, [selectedKey, filteredMenuItems])
+
+  useEffect(() => {
+    if (!menuQuery) return
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuQuery, handleKeyDown])
+
+  if (!menuQuery) return null
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        backgroundColor: '#ddd',
+        color: 'white',
+        left: menuQuery.x,
+        top: menuQuery.y,
+      }}
+    >
+      {Object.entries(filteredMenuItems).map(([key, value]) => (
+        <div
+          key={key}
+          style={{
+            color: key === selectedKey ? 'blue' : 'white',
+          }}
+        >
+          {value.label}
+
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default RichTextEditor

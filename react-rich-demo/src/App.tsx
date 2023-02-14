@@ -4,11 +4,16 @@ import RichTextEditor from 'react-rich'
 function App() {
   const [content, setContent] = useState([
     {
-      id: 0,
+      id: '0',
+      type: 'image',
+      text: 'https://picsum.photos/200/300',
+    },
+    {
+      id: '1',
       type: 'paragraph',
       children: [
         {
-          id: 1,
+          id: '11',
           type: 'text',
           text: 'Hello World!',
         },
