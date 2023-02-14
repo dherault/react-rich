@@ -1,0 +1,23 @@
+{
+  "name": "react-rich-monorepo",
+  "version": "0.0.0",
+  "description": "A React Rich Text Editor",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dherault/react-rich.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dherault/react-rich/issues"
+  },
+  "homepage": "https://github.com/dherault/react-rich#readme",
+  "devDependencies": {
+    "eslint": "^8.34.0",
+    "eslint-config-dherault-typescript": "^1.2.0"
+  }
+}
