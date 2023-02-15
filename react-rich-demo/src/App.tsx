@@ -6,7 +6,7 @@ function App() {
     {
       id: '0',
       type: 'image',
-      text: 'https://picsum.photos/200/300',
+      html: 'https://picsum.photos/200/300',
     },
     {
       id: '1',
@@ -15,7 +15,7 @@ function App() {
         {
           id: '11',
           type: 'text',
-          text: 'Hello World!',
+          html: 'Hello World!',
         },
       ],
     },

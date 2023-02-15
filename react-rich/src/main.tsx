@@ -16,7 +16,7 @@ type RichTextNodeType = {
   id: string
   type: RichTextNodeTypesType
   children?: RichTextNodeType[]
-  text?: string
+  html?: string
 }
 
 type RichTextContentType = RichTextNodeType[]
@@ -44,45 +44,26 @@ const menuItems: Partial<Record<RichTextNodeTypesType, MenuItemType>> = {
   },
 }
 
+const typeToRenderer: Partial<Record<RichTextNodeTypesType, (node: RichTextNodeType) => string>> = {
+  paragraph: (node: RichTextNodeType) => `<p id="${node.id}">${node.children?.map(child => `<span id="${child.id}">${child.html}</span>`).join('')}</p>`,
+  image: (node: RichTextNodeType) => `<img id="${node.id}" width="10%" src="${node.html}" />`,
+}
+
+function renderContentToHtml(content: RichTextContentType) {
+  if (!Array.isArray(content)) return ''
+
+  return content.map(node => typeToRenderer[node.type]?.(node)).join('')
+}
+
 function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
   const rootRef = useRef<HTMLDivElement>(null)
 
+  console.log('content', content)
   const [currentNode, setCurrentNode] = useState<RichTextNodeType | null>(null)
   const [currentNodeIndex, setCurrentNodeIndex] = useState<number>(-1)
   const [menuQuery, setMenuQuery] = useState<MenuQueryType | null>(null)
 
-  const renderParagraph = useCallback((node: RichTextNodeType) => (
-    <p
-      key={node.id}
-      id={node.id}
-    >
-      {node.children?.map(child => (
-        <span key={child.id}>{child.text}</span>
-      ))}
-    </p>
-  ), [])
-
-  const renderImage = useCallback((node: RichTextNodeType) => (
-    <img
-      key={node.id}
-      id={node.id}
-      width="10%"
-      src={node.text!}
-    />
-  ), [])
-
-  const typeToRenderer = useMemo<Partial<Record<RichTextNodeTypesType, typeof renderParagraph>>>(() => ({
-    paragraph: renderParagraph,
-    image: renderImage,
-  }), [renderParagraph, renderImage])
-
-  const renderContent = useCallback((content: RichTextContentType) => {
-    if (!Array.isArray(content)) return null
-
-    return content.map(node => typeToRenderer[node.type]?.(node))
-  }, [typeToRenderer])
-
-  const getContentText = useCallback(() => content.map(node => node.children?.map(child => child.text ?? '')).join(''), [content])
+  const getContentText = useCallback(() => content.map(node => node.children?.map(child => child.html ?? '')).join(''), [content])
 
   const getContentTree = useCallback((htmlString: string) => {
 
@@ -92,6 +73,7 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
     const root = doc.body
     const children = root.childNodes
     const result: RichTextNodeType[] = []
+    const ids: string[] = []
 
     for (let i = 0; i < children.length; i++) {
       const child = children[i] as Element
@@ -104,25 +86,34 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
           const textNode = textNodes[j] as Element
 
           if (textNode.nodeName === 'SPAN') {
+            const id = ids.includes(textNode.id) ? Math.random().toString() : textNode.id ?? Math.random().toString()
+
+            ids.push(id)
             textChildren.push({
-              id: textNode.id ?? Math.random().toString(),
+              id,
               type: 'text',
-              text: textNode.textContent ?? '',
+              html: textNode.innerHTML,
             })
           }
         }
 
+        const id = ids.includes(child.id) ? Math.random().toString() : child.id ?? Math.random().toString()
+
+        ids.push(id)
         result.push({
-          id: child.id ?? Math.random().toString(),
+          id,
           type: 'paragraph',
           children: textChildren,
         })
       }
-      if (child.nodeName === 'IMG') {
+      else if (child.nodeName === 'IMG') {
+        const id = ids.includes(child.id) ? Math.random().toString() : child.id ?? Math.random().toString()
+
+        ids.push(id)
         result.push({
-          id: child.id ?? Math.random().toString(),
+          id,
           type: 'image',
-          text: child.getAttribute('src') ?? '',
+          html: child.getAttribute('src') ?? '',
         })
       }
     }
@@ -133,10 +124,15 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
   const handleInput = useCallback((event: FormEvent<HTMLDivElement>) => {
     const existingText = getContentText()
     const rawText = event.currentTarget.innerText
-
     const nDiff = rawText.length - existingText.length
-    console.log('existingText, ', existingText, rawText, nDiff)
-    console.log('event.currentTarget.innerHTML', getContentTree(event.currentTarget.innerHTML))
+
+    const tree = getContentTree(event.currentTarget.innerHTML)
+
+    console.log('tree', tree)
+
+    rootRef.current!.innerHTML = renderContentToHtml(tree)
+
+    setContent(tree)
 
     if (nDiff > 0) {
       const caretIndex = getCaretIndex(rootRef.current!)
@@ -163,7 +159,7 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
     }
 
     setMenuQuery(null)
-  }, [getContentText, getContentTree])
+  }, [getContentText, getContentTree, setContent])
 
   const handleAddNode = useCallback((key: RichTextNodeTypesType) => {
     setContent(prevContent =>
@@ -191,26 +187,38 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
     }
   }, [handleCaretChange])
 
+  useEffect(() => {
+    if (!rootRef.current) return
+
+    rootRef.current.innerHTML = renderContentToHtml(content)
+  }, [content])
+
   return (
-    <div style={{ position: 'relative' }}>
-      <div
-        ref={rootRef}
-        contentEditable
-        suppressContentEditableWarning
-        onInput={handleInput}
-        style={{
-          outline: 'none',
-          backgroundColor: '#eee',
-        }}
-      >
-        {renderContent(content)}
+    <>
+      <div>
+        {JSON.stringify(currentNode?.id)}
+        {' - '}
+        {currentNodeIndex}
       </div>
-      <RichTextEditorMenu
-        menuQuery={menuQuery}
-        setMenuQuery={setMenuQuery}
-        onValidate={handleAddNode}
-      />
-    </div>
+      <div style={{ position: 'relative' }}>
+        <div
+          ref={rootRef}
+          contentEditable
+          suppressContentEditableWarning
+          // dangerouslySetInnerHTML={{ __html: renderContentToHtml(content) }}
+          onInput={handleInput}
+          style={{
+            outline: 'none',
+            backgroundColor: '#eee',
+          }}
+        />
+        <RichTextEditorMenu
+          menuQuery={menuQuery}
+          setMenuQuery={setMenuQuery}
+          onValidate={handleAddNode}
+        />
+      </div>
+    </>
   )
 }
 
