@@ -1,6 +1,8 @@
+import { Dispatch, ReactNode, SetStateAction, useCallback, useMemo, useRef } from 'react'
 import { CompositeDecorator, ContentBlock, ContentState, Editor, EditorState, RichUtils } from 'draft-js'
 import 'draft-js/dist/Draft.css'
-import { Dispatch, ReactNode, SetStateAction, useCallback } from 'react'
+
+import InlineMenu from './InlineMenu'
 
 type RichTextEditorPropsType = {
   content: EditorState
@@ -8,6 +10,16 @@ type RichTextEditorPropsType = {
 }
 
 function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
+  const editorRef = useRef<Editor>(null)
+
+  const textSelected = useMemo(() => {
+    const selectionState = content.getSelection()
+
+    const start = selectionState.getStartOffset()
+    const end = selectionState.getEndOffset()
+
+    return start !== end
+  }, [content])
 
   const handleKeyCommand = useCallback((command: string, editorState: EditorState) => {
     const newState = RichUtils.handleKeyCommand(editorState, command)
@@ -58,11 +70,20 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
       >
         Link to herobusinessplan.com
       </button>
-      <Editor
-        editorState={content}
-        onChange={setContent}
-        handleKeyCommand={handleKeyCommand}
-      />
+      <div style={{ position: 'relative' }}>
+        <Editor
+          ref={editorRef}
+          editorState={content}
+          onChange={setContent}
+          handleKeyCommand={handleKeyCommand}
+        />
+        <InlineMenu
+          open={textSelected}
+          content={content}
+          setContent={setContent}
+          editor={editorRef.current}
+        />
+      </div>
     </>
   )
 }
