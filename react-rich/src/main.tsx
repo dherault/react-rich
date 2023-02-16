@@ -12,15 +12,6 @@ type RichTextEditorPropsType = {
 function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
   const editorRef = useRef<Editor>(null)
 
-  const textSelected = useMemo(() => {
-    const selectionState = content.getSelection()
-
-    const start = selectionState.getStartOffset()
-    const end = selectionState.getEndOffset()
-
-    return start !== end
-  }, [content])
-
   const handleKeyCommand = useCallback((command: string, editorState: EditorState) => {
     const newState = RichUtils.handleKeyCommand(editorState, command)
 
@@ -78,10 +69,9 @@ function RichTextEditor({ content, setContent }: RichTextEditorPropsType) {
           handleKeyCommand={handleKeyCommand}
         />
         <InlineMenu
-          open={textSelected}
           content={content}
           setContent={setContent}
-          editor={editorRef.current}
+          editor={editorRef.current!}
         />
       </div>
     </>

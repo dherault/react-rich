@@ -35,6 +35,7 @@
     "react-dom": "^18.2.0"
   },
   "dependencies": {
-    "draft-js": "^0.11.7"
+    "draft-js": "^0.11.7",
+    "react-select": "^5.7.0"
   }
 }
