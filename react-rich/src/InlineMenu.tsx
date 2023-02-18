@@ -42,6 +42,7 @@ function InlineMenu({ content, setContent, editor }: InlineMenuPropsType) {
     if (!textSelected) return setPosition(null)
 
     const selectionRect = getVisibleSelectionRect(window)
+
     const editorRect = editor?.editor?.getBoundingClientRect()
     const height = rootRef.current?.getBoundingClientRect().height ?? 0
 
